@@ -1,0 +1,2 @@
+import {readFile,mkdir,writeFile} from 'node:fs/promises';
+let source=await readFile('live-inspection.mjs','utf8');for(const [name,path] of [['HTML','app.html'],['JS','app.js'],['CORE','core.mjs']])source+='const '+name+' = '+JSON.stringify(await readFile(path,'utf8'))+';\n';source+=await readFile('worker-template.txt','utf8');await mkdir('worker',{recursive:true});await mkdir('dist/server',{recursive:true});await writeFile('worker/index.js',source);await writeFile('dist/server/index.js',source);console.log('Built Worker');
