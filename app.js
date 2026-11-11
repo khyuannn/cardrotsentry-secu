@@ -230,8 +230,9 @@ async function post(path,data){
   return body;
 }
 fetch('/api/config').then(r=>r.json()).then(config=>{
-  $('aistatus').textContent=config.aiConfigured?'Model configured':'Model not configured';
+  $('aistatus').textContent=config.aiConfigured?config.aiProvider+' configured':'Model not configured';
   $('ask').disabled=!config.aiConfigured;
+  $('ask').textContent='Extract with '+config.aiProvider;
 }).catch(()=>$('aistatus').textContent='Model connection unavailable');
 $('sampleProposal').onclick=()=>showProposal({receiver:'supplier-a.testnet',amountNear:'2',service:'Developer API plan'},'Sample proposal');
 $('offer').oninput=()=>showProposal(null);
@@ -245,7 +246,7 @@ $('ask').onclick=async()=>{
   $('aioutput').textContent='Reading the offer…';
   try{
     const result=await post('/api/propose',{offer});
-    showProposal(result.proposal,'Proposal extracted by NEAR AI');
+    showProposal(result.proposal,'Proposal extracted by '+result.provider);
   }catch(error){
     $('aioutput').textContent=error.message+' You can load the sample proposal to continue.';
   }finally{
