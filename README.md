@@ -32,6 +32,12 @@ The bundle contains the full committed project and history. It excludes local se
 
 Once the latest version is on GitHub, new users can clone [the repository](https://github.com/khyuannn/cardrotsentry-secu) directly and run the same npm commands. Use this one checkout for future changes, with ordinary commits and branches. `npm run build` generates the worker files. `npm run demo:attack` prints the simulated refusal log.
 
+## Deploy on Vercel
+
+Import this repository into [Vercel](https://vercel.com/new). Choose **Other** if asked for a framework preset, use the repository root, and leave the output directory override off. The checked-in `vercel.json` runs `npm run build:vercel` and packages the app and server endpoints together. Start with sample proposals. They need no environment variables.
+
+Once deployed, open the production URL and check **Payment workspace → Subscription renewal**. The separate **Check a receiver** screen makes a read-only testnet query. If you connect the repository with `main` as the production branch, subsequent pushes to `main` trigger a new production build.
+
 ## What works now
 
 | Component | Actual behavior |

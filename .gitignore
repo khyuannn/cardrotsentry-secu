@@ -5,3 +5,5 @@ node_modules/
 dist/
 worker/index.js
 *.log
+
+.vercel/
