@@ -3,7 +3,7 @@ const $=x=>document.getElementById(x), names=['Normal supplier','Changed destina
 const reasons={POLICY_CHECKS_PASSED:'Receiver and current evidence match the owner’s policy.',RECEIVER_CHANGED:'Payment destination differs from the owner-approved supplier.',CONTRACT_CODE_CHANGED:'Receiver contract code changed since the baseline approval.',REVIEWED_DENY_ENTRY:'Receiver is on the reviewed demonstration deny list.',INCOMPLETE_EVIDENCE:'Required activity evidence is unavailable or stale.',FIRST_INTERACTION:'No confirmed prior interaction is available.',BUDGET_EXCEEDED:'Payment exceeds the owner’s hard limit.',INVALID_AMOUNT:'The payment amount must be greater than zero.',HUMAN_REJECTED:'The reviewer rejected this payment.',RECEIVER_NOT_FOUND:'The receiver account was not found on NEAR testnet.',RPC_UNAVAILABLE:'The testnet provider did not return account data.',RPC_QUERY_UNRESOLVED:'The testnet provider could not resolve this query.',HISTORY_NOT_CONNECTED:'Account activity history is unavailable.',RELATIONSHIP_NOT_VERIFIED:'Prior payments to this receiver could not be verified.',REPORT_REGISTRY_NOT_CONNECTED:'Threat reports are unavailable.'};
 function esc(v){return String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}function toast(s){$('toast').textContent=s;$('toast').classList.remove('hidden');setTimeout(()=>$('toast').classList.add('hidden'),4500)}
 function event(type,outcome,receiver=p.receiver,receipt){history.unshift({time:new Date().toISOString(),receiver,type,outcome,...(receipt&&{receipt})});history=history.slice(0,200);try{localStorage.setItem('cadrotsentry-history',JSON.stringify(history))}catch{}renderHistory();$('log').textContent=history.slice(0,12).reverse().map(h=>h.time.slice(11,19)+'  '+h.type+'  '+h.outcome).join('\n')}
-function renderHistory(){const rows=history.map(h=>'<tr><td>'+esc(new Date(h.time).toLocaleTimeString())+'</td><td>'+esc(h.receiver)+'</td><td>'+esc(({SECURITY_REVIEW:'Security review',INCIDENT_REPLAY:'Incident replay',CHECK:'Payment check',PAYMENT_GUARD:'Payment guard',DEMO_HUMAN_REVIEW:'Reviewer decision',PROPOSAL_CHANGED:'Proposal changed',POLICY_AUTHORIZATION:'Policy authorization',EXECUTION:'Demo payment'})[h.type]||h.type)+'</td><td>'+esc(h.receipt?receiptOutcome(h).join(' · '):h.outcome)+'</td></tr>').join('');$('historyrows').innerHTML=rows||'<tr><td colspan="4">No decisions yet. Run your first security check.</td></tr>';$('attempts').textContent=history.filter(h=>h.type==='CHECK').length;$('blocked').textContent=history.filter(h=>h.outcome==='SIGNING_REFUSED').length;$('paid').textContent=history.filter(h=>h.outcome==='SIMULATED_EXECUTION_CONFIRMED').length;$('pending').textContent=decision?.verdict==='warn'&&(!approval||approval.expires<=Date.now())?1:0}
+function renderHistory(){const rows=history.map(h=>'<tr><td>'+esc(new Date(h.time).toLocaleTimeString())+'</td><td>'+esc(h.receiver)+'</td><td>'+esc(({SECURITY_REVIEW:'Security review',INCIDENT_REPLAY:'Incident replay',CHECK:'Payment check',PAYMENT_GUARD:'Payment guard',DEMO_HUMAN_REVIEW:'Reviewer decision',PROPOSAL_CHANGED:'Proposal changed',POLICY_AUTHORIZATION:'Policy authorization',EXECUTION:'Demo payment'})[h.type]||h.type)+'</td><td>'+esc(h.receipt?receiptOutcome(h).join(' · '):h.outcome)+'</td></tr>').join('');$('historyrows').innerHTML=rows||'<tr><td colspan="4">No decisions yet. Run your first security check.</td></tr>';$('attempts').textContent=history.filter(h=>h.type==='CHECK').length;$('blocked').textContent=history.filter(h=>h.outcome==='SIGNING_REFUSED').length;$('paid').textContent=history.filter(h=>h.outcome==='SIMULATED_EXECUTION_CONFIRMED').length;$('pending').textContent=decision?.verdict==='warn'&&(!approval||(approval.expires<=Date.now()&&!used.includes(approval.id)))?1:0}
 function select(i){idx=i;serial++;p={service:'API access · monthly developer plan',receiver:i===1?'supplier-new.testnet':i===3?'bad-demo.testnet':'supplier-a.testnet',amount:'2000000000000000000000000'};e={expected:'supplier-a.testnet',limit:'5000000000000000000000000',code:i===2?'code-v2-9d4a':'code-v1-7c21',baselineCode:'code-v1-7c21',revision:serial,known:i!==1&&i!==3,fresh:i!==4,denied:i===3};decision=null;approval=null;render()}
 function resultCard(tone, title, bullets=[], next=''){
   const icon={allow:'✓',warn:'!',block:'×',neutral:'·'}[tone];
@@ -17,22 +17,38 @@ function formatNear(amount){
   const fraction=digits.slice(-24).replace(/0+$/,'');
   return fraction?whole+'.'+fraction:whole;
 }
-function render(){ $('scenarios').innerHTML=names.map((n,i)=>'<button class="'+(i===idx?'chosen':'')+'" aria-pressed="'+(i===idx)+'" data-i="'+i+'">'+n+'</button>').join('');$('receiver').textContent=p.receiver;$('service').textContent=p.service;$('amount').textContent=formatNear(p.amount)+' NEAR / '+formatNear(e.limit)+' NEAR';$('request').textContent='demo-'+String(serial).padStart(3,'0');const changed=p.receiver!==e.expected||e.code!==e.baselineCode;$('change').innerHTML=changed?'<div class="change"><b>What changed?</b><br>'+ (p.receiver!==e.expected?'Destination: supplier-a.testnet → '+esc(p.receiver):'Contract code: '+esc(e.baselineCode)+' → '+esc(e.code))+'<br>Prior trust does not cover these conditions.</div>':'';
-const facts=[['Account history','Established demo account · 127 days','Fixture, not verified account age'],['Recent activity',e.fresh?'18 successful demo interactions':'History unavailable',e.fresh?'Seeded 30-day activity window':'Coverage unknown; review required'],['Contract code',e.code,e.code===e.baselineCode?'Matches baseline snapshot':'Changed from '+e.baselineCode],['Agent relationship',e.known?'3 prior confirmed demo payments':'No previous demo payments','Successful history is context, not proof of safety'],['Shared threat reports',e.denied?'Reviewed deny entry active':'No active reviewed deny entry',e.denied?'Evidence: seeded malicious-redirection report':'Fixture registry · no production threat feed']];$('evidence').innerHTML=facts.map(([a,b,c])=>'<div class="evidence"><header><b>'+a+'</b><span class="'+(b.includes('Changed')||b.includes('unavailable')?'amber':e.denied&&a==='Shared threat reports'?'red':'ok')+'">'+esc(b)+'</span></header><p>'+esc(c)+'</p></div>').join('');const authorized=!!approval&&approval.expires>Date.now()&&!used.includes(approval.id);
+function render(){ $('scenarios').innerHTML=names.map((n,i)=>'<button class="'+(i===idx?'chosen':'')+'" aria-pressed="'+(i===idx)+'" data-i="'+i+'">'+n+'</button>').join('');$('receiver').textContent=p.receiver;$('service').textContent=p.service;$('amount').textContent=formatNear(p.amount)+' NEAR';$('payment-limit').textContent=formatNear(e.limit)+' NEAR';$('request').textContent='demo-'+String(serial).padStart(3,'0');const changed=p.receiver!==e.expected||e.code!==e.baselineCode;$('change').innerHTML=changed?'<div class="change"><b>What changed?</b><br>'+ (p.receiver!==e.expected?'Destination: supplier-a.testnet → '+esc(p.receiver):'Contract code: '+esc(e.baselineCode)+' → '+esc(e.code))+'<br>Prior trust does not cover these conditions.</div>':'';
+const facts=[['Account history','Established demo account · 127 days','Fixture, not verified account age'],['Recent activity',e.fresh?'18 successful demo interactions':'History unavailable',e.fresh?'Seeded 30-day activity window':'Coverage unknown; review required'],['Contract code',e.code,e.code===e.baselineCode?'Matches baseline snapshot':'Changed from '+e.baselineCode],['Agent relationship',e.known?'3 prior confirmed demo payments':'No previous demo payments','Successful history is context, not proof of safety'],['Shared threat reports',e.denied?'Reviewed deny entry active':'No active reviewed deny entry',e.denied?'Evidence: seeded malicious-redirection report':'Fixture registry · no production threat feed']];$('evidence').innerHTML=facts.map(([a,b,c])=>'<div class="evidence"><header><b>'+a+'</b><span class="'+(b.includes('Changed')||b.includes('unavailable')?'amber':e.denied&&a==='Shared threat reports'?'red':'ok')+'">'+esc(b)+'</span></header><p>'+esc(c)+'</p></div>').join('');const completed=!!approval&&used.includes(approval.id);
+const authorized=!!approval&&approval.expires>Date.now()&&!completed;
+const needsReview=decision?.verdict==='warn'&&!authorized&&!completed;
+const rejected=decision?.reasons.includes('HUMAN_REJECTED');
 const status={
-  allow:['Allowed by demo policy',authorized?'Select Simulate payment to continue.':'Run the check again for a fresh authorization.'],
-  warn:['Needs your review',authorized?'Approved for this exact payment. Select Simulate payment.':'Confirm the details independently, then approve or reject this payment.'],
-  block:['Payment blocked','Signing is refused. Review the reason before creating a new request.']
+  allow:['Ready to simulate', 'Select Simulate payment to continue.'],
+  warn:authorized?['Approved for simulation','Select Simulate payment to continue.']:['Needs your review','Check what changed before you approve or reject this demo payment.'],
+  block:[rejected?'Payment rejected':'Payment blocked','Choose a scenario to start another demo payment.']
 };
-$('verdict').innerHTML=decision
-  ?resultCard(decision.verdict,status[decision.verdict][0],decision.reasons.map(r=>reasons[r]||r),status[decision.verdict][1])
-  :resultCard('neutral','Not checked yet',[],'Select Check payment to see the outcome.');
-$('approve').disabled=decision?.verdict!=='warn'||authorized;
-$('reject').disabled=decision?.verdict!=='warn';
-$('execute').disabled=!authorized||decision?.verdict==='block';
-$('old').disabled=!decision||!previous||previous===approval;
-$('mutate').disabled=!authorized;
-$('approvalstate').textContent=authorized?'Authorized for this receiver and amount.':approval&&used.includes(approval.id)?'Demo payment recorded. This authorization has been used.':approval?'Authorization expired.':'No payment authorized.';
+const activeControl=document.activeElement;
+let verdict=resultCard('neutral','Ready to check',[],'Select Check payment to see if it can proceed.');
+if(completed)verdict=resultCard('allow','Simulated payment completed',[],'See the receipt below.');
+else if(approval&&!authorized&&decision?.verdict==='allow')verdict=resultCard('warn','Approval expired',[],'Check the payment again to continue.');
+else if(decision)verdict=resultCard(authorized?'allow':decision.verdict,
+  status[decision.verdict][0],decision.reasons.map(r=>reasons[r]||r),status[decision.verdict][1]);
+$('verdict').innerHTML=verdict;
+const actions={
+  check:!decision||(!authorized&&!completed&&decision.verdict==='allow'),
+  approve:needsReview,
+  reject:needsReview,
+  execute:authorized&&decision?.verdict!=='block',
+  old:needsReview&&!!previous&&previous!==approval,
+  mutate:authorized&&p.receiver===e.expected
+};
+for(const [id,visible] of Object.entries(actions)){
+  const button=$(id);
+  button.hidden=!visible;
+  button.disabled=!visible;
+}
+$('check').parentElement.hidden=!Object.values(actions).some(Boolean);
+if(activeControl?.hidden&&Object.hasOwn(actions,activeControl.id))$('verdict').focus();
 renderHistory();renderReceipt()}
 function authorize(){
   approval={id:crypto.randomUUID(),binding:binding(p,e),expires:Date.now()+60000};
@@ -77,19 +93,20 @@ function receiptOutcome(entry){
 }
 function renderReceipt(){
   const entry=history.find(item=>item.receipt);
+  $('receipt').hidden=!entry;
   if(!entry){
-    $('receipt').innerHTML='<h3>Latest payment receipt</h3><p>A receipt appears when a payment is simulated, stopped, or rejected.</p>';
+    $('receipt').textContent='';
     return;
   }
   const {service,expected,requested,reason}=entry.receipt;
-  const [title]=receiptOutcome(entry);
-  const tone=entry.outcome==='SIMULATED_EXECUTION_CONFIRMED'?'allow':entry.outcome==='FRESH_APPROVAL_REQUIRED'?'warn':'block';
-  const rows=[['Purchase',service],['Proposed receiver',entry.receiver],['Requested amount',formatNear(requested)+' NEAR'],['Simulated spend',formatNear(entry.receipt.spent)+' NEAR']];
+  const [title,spend]=receiptOutcome(entry);
+  const rows=[['Purchase',service],['Proposed receiver',entry.receiver],['Requested amount',formatNear(requested)+' NEAR']];
   if(expected!==entry.receiver)rows.splice(1,0,['Originally approved receiver',expected]);
-  $('receipt').innerHTML='<h3>Latest payment receipt</h3><p>'+esc(new Date(entry.time).toLocaleString())+'</p>'+
-    resultCard(tone,title,[reason])+
+  $('receipt').innerHTML='<div class="receipt-summary"><h3>Latest payment receipt</h3><b>'+esc(spend)+'</b></div>'+
+    '<p>'+esc(title)+'</p><details><summary>View receipt details</summary><p>'+esc(reason)+'</p>'+
     rows.map(([label,value])=>'<div class="row"><span>'+esc(label)+'</span><b>'+esc(value)+'</b></div>').join('')+
-    '<p class="note">Simulation only. No real NEAR moved.</p>';
+    '<p class="note">'+esc(new Date(entry.time).toLocaleString())+' · Simulation only. No real NEAR moved.</p></details>';
+
 }
 function run(authorization){
   if(!decision)return;
@@ -107,7 +124,7 @@ function run(authorization){
 }
 $('execute').onclick=()=>run(approval);$('old').onclick=()=>run(previous);$('mutate').onclick=()=>{p={...p,receiver:p.receiver==='supplier-a.testnet'?'supplier-new.testnet':'supplier-a.testnet'};e={...e,revision:e.revision+1,known:p.receiver===e.expected,denied:p.receiver===incidentReceiver};approval=null;decision=decide(p,e);event('PROPOSAL_CHANGED','PRIOR_APPROVAL_INVALIDATED');render()};$('export').onclick=()=>{const b=new Blob([JSON.stringify({mode:'simulation',history},null,2)],{type:'application/json'}),url=URL.createObjectURL(b),a=document.createElement('a');a.href=url;a.download='cadrotsentry-demo-log.json';a.click();URL.revokeObjectURL(url)};
 const pages={
-  overview:['Review an agent payment','Pick a sample payment and see why it can proceed, needs your review, or is blocked.'],
+  overview:['Review an agent payment','Choose an example, check the payment, and follow the result.'],
   live:['Check a receiver','Look up account evidence before deciding whether to trust a proposed receiver.'],
   history:['Decision history','Review payment checks, authorizations, and saved demo incidents.'],
   replay:['Incident replay','See why a redirected payment was refused and save it for security review.'],
