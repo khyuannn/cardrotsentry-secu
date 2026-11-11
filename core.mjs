@@ -3,6 +3,7 @@ export function decide(p,e){
  if(!/^\d+$/.test(p.amount)||BigInt(p.amount)<=0n)block('INVALID_AMOUNT');
  if(/^\d+$/.test(p.amount)&&BigInt(p.amount)>BigInt(e.limit))block('BUDGET_EXCEEDED');
  if(e.denied)block('REVIEWED_DENY_ENTRY');
+ if(e.approvedRenewalAmount!==undefined&&p.amount!==e.approvedRenewalAmount)warn('RENEWAL_PRICE_CHANGED');
  if(p.receiver!==e.expected)warn('RECEIVER_CHANGED');
  if(e.code!==e.baselineCode)warn('CONTRACT_CODE_CHANGED');
  if(!e.fresh)warn('INCOMPLETE_EVIDENCE');
