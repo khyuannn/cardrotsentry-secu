@@ -2,8 +2,8 @@ import {decide,binding,execute} from '/core.mjs';
 const $=x=>document.getElementById(x), names=['Normal supplier','Changed destination','Contract changed','Blocked receiver','Missing history'];let history;try{history=JSON.parse(localStorage.getItem('cadrotsentry-history')||'[]');if(!Array.isArray(history))history=[]}catch{history=[]}let idx=0,p,e,decision=null,approval=null,previous=null,used=[],serial=0,proposal=null,replayed=false,incidentSaved=false,approvalTimer;
 const reasons={POLICY_CHECKS_PASSED:'Receiver and current evidence match the owner’s policy.',RECEIVER_CHANGED:'Payment destination differs from the owner-approved supplier.',CONTRACT_CODE_CHANGED:'Receiver contract code changed since the baseline approval.',REVIEWED_DENY_ENTRY:'Receiver is on the reviewed demonstration deny list.',INCOMPLETE_EVIDENCE:'Required activity evidence is unavailable or stale.',FIRST_INTERACTION:'No confirmed prior interaction is available.',BUDGET_EXCEEDED:'Payment exceeds the owner’s hard limit.',INVALID_AMOUNT:'The payment amount must be greater than zero.',HUMAN_REJECTED:'The reviewer rejected this payment.',RECEIVER_NOT_FOUND:'The receiver account was not found on NEAR testnet.',RPC_UNAVAILABLE:'The testnet provider did not return account data.',RPC_QUERY_UNRESOLVED:'The testnet provider could not resolve this query.',HISTORY_NOT_CONNECTED:'Account activity history is unavailable.',RELATIONSHIP_NOT_VERIFIED:'Prior payments to this receiver could not be verified.',REPORT_REGISTRY_NOT_CONNECTED:'Threat reports are unavailable.'};
 function esc(v){return String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}function toast(s){$('toast').textContent=s;$('toast').classList.remove('hidden');setTimeout(()=>$('toast').classList.add('hidden'),4500)}
-function event(type,outcome,receiver=p.receiver){history.unshift({time:new Date().toISOString(),receiver,type,outcome});history=history.slice(0,200);try{localStorage.setItem('cadrotsentry-history',JSON.stringify(history))}catch{}renderHistory();$('log').textContent=history.slice(0,12).reverse().map(h=>h.time.slice(11,19)+'  '+h.type+'  '+h.outcome).join('\n')}
-function renderHistory(){const rows=history.map(h=>'<tr><td>'+esc(new Date(h.time).toLocaleTimeString())+'</td><td>'+esc(h.receiver)+'</td><td>'+esc(({SECURITY_REVIEW:'Security review',INCIDENT_REPLAY:'Incident replay',CHECK:'Payment check',PAYMENT_GUARD:'Payment guard',DEMO_HUMAN_REVIEW:'Reviewer decision',PROPOSAL_CHANGED:'Proposal changed',POLICY_AUTHORIZATION:'Policy authorization',EXECUTION:'Demo payment'})[h.type]||h.type)+'</td><td>'+esc(h.outcome)+'</td></tr>').join('');$('historyrows').innerHTML=rows||'<tr><td colspan="4">No decisions yet. Run your first security check.</td></tr>';$('attempts').textContent=history.filter(h=>h.type==='CHECK').length;$('blocked').textContent=history.filter(h=>h.outcome==='SIGNING_REFUSED').length;$('paid').textContent=history.filter(h=>h.outcome==='SIMULATED_EXECUTION_CONFIRMED').length;$('pending').textContent=decision?.verdict==='warn'&&(!approval||approval.expires<=Date.now())?1:0}
+function event(type,outcome,receiver=p.receiver,receipt){history.unshift({time:new Date().toISOString(),receiver,type,outcome,...(receipt&&{receipt})});history=history.slice(0,200);try{localStorage.setItem('cadrotsentry-history',JSON.stringify(history))}catch{}renderHistory();$('log').textContent=history.slice(0,12).reverse().map(h=>h.time.slice(11,19)+'  '+h.type+'  '+h.outcome).join('\n')}
+function renderHistory(){const rows=history.map(h=>'<tr><td>'+esc(new Date(h.time).toLocaleTimeString())+'</td><td>'+esc(h.receiver)+'</td><td>'+esc(({SECURITY_REVIEW:'Security review',INCIDENT_REPLAY:'Incident replay',CHECK:'Payment check',PAYMENT_GUARD:'Payment guard',DEMO_HUMAN_REVIEW:'Reviewer decision',PROPOSAL_CHANGED:'Proposal changed',POLICY_AUTHORIZATION:'Policy authorization',EXECUTION:'Demo payment'})[h.type]||h.type)+'</td><td>'+esc(h.receipt?receiptOutcome(h).join(' · '):h.outcome)+'</td></tr>').join('');$('historyrows').innerHTML=rows||'<tr><td colspan="4">No decisions yet. Run your first security check.</td></tr>';$('attempts').textContent=history.filter(h=>h.type==='CHECK').length;$('blocked').textContent=history.filter(h=>h.outcome==='SIGNING_REFUSED').length;$('paid').textContent=history.filter(h=>h.outcome==='SIMULATED_EXECUTION_CONFIRMED').length;$('pending').textContent=decision?.verdict==='warn'&&(!approval||approval.expires<=Date.now())?1:0}
 function select(i){idx=i;serial++;p={service:'API access · monthly developer plan',receiver:i===1?'supplier-new.testnet':i===3?'bad-demo.testnet':'supplier-a.testnet',amount:'2000000000000000000000000'};e={expected:'supplier-a.testnet',limit:'5000000000000000000000000',code:i===2?'code-v2-9d4a':'code-v1-7c21',baselineCode:'code-v1-7c21',revision:serial,known:i!==1&&i!==3,fresh:i!==4,denied:i===3};decision=null;approval=null;render()}
 function resultCard(tone, title, bullets=[], next=''){
   const icon={allow:'✓',warn:'!',block:'×',neutral:'·'}[tone];
@@ -33,7 +33,7 @@ $('execute').disabled=!authorized||decision?.verdict==='block';
 $('old').disabled=!decision||!previous||previous===approval;
 $('mutate').disabled=!authorized;
 $('approvalstate').textContent=authorized?'Authorized for this receiver and amount.':approval&&used.includes(approval.id)?'Demo payment recorded. This authorization has been used.':approval?'Authorization expired.':'No payment authorized.';
-renderHistory()}
+renderHistory();renderReceipt()}
 function authorize(){
   approval={id:crypto.randomUUID(),binding:binding(p,e),expires:Date.now()+60000};
   previous=approval;
@@ -46,7 +46,7 @@ $('check').onclick=()=>{
   approval=null;
   event('CHECK',decision.verdict.toUpperCase()+': '+decision.reasons.map(r=>reasons[r]||r).join(' '));
   if(decision.verdict==='allow'){authorize();event('POLICY_AUTHORIZATION','ISSUED_FOR_EXACT_PAYMENT')}
-  if(decision.verdict==='block')event('PAYMENT_GUARD','SIGNING_REFUSED');
+  if(decision.verdict==='block')recordPayment('PAYMENT_GUARD','SIGNING_REFUSED',decision.reasons.map(r=>reasons[r]||r).join(' '));
   render();
 };
 $('approve').onclick=()=>{
@@ -58,10 +58,53 @@ $('approve').onclick=()=>{
 $('reject').onclick=()=>{
   approval=null;
   decision={verdict:'block',reasons:['HUMAN_REJECTED']};
-  event('DEMO_HUMAN_REVIEW','REJECTED');
+  recordPayment('DEMO_HUMAN_REVIEW','REJECTED',reasons.HUMAN_REJECTED);
   render();
 };
-function run(a){if(!decision){toast('Run a security check first.');return}const result=execute(p,e,a,used,Date.now());if(decision.reasons.includes('HUMAN_REJECTED')){event('EXECUTION','SIGNING_REFUSED');toast('Signing refused: reviewer rejected this payment.');return}if(result.ok)used.push(a.id);event('EXECUTION',result.reason);toast(result.ok?'Demo payment confirmed. No blockchain funds moved.':result.reason.replaceAll('_',' '));render()}
+function recordPayment(type,outcome,reason){
+  event(type,outcome,p.receiver,{service:p.service,expected:e.expected,requested:p.amount,
+    spent:outcome==='SIMULATED_EXECUTION_CONFIRMED'?p.amount:'0',reason});
+}
+function receiptOutcome(entry){
+  const titles={
+    SIMULATED_EXECUTION_CONFIRMED:'Simulated payment completed',
+    FRESH_APPROVAL_REQUIRED:'Payment stopped · fresh approval needed',
+    SIGNING_REFUSED:'Signing refused',
+    REPLAY_REJECTED:'Payment stopped · approval already used',
+    REJECTED:'Payment rejected by reviewer'
+  };
+  return [titles[entry.outcome]||'Payment stopped',formatNear(entry.receipt.spent)+' NEAR simulated spend'];
+}
+function renderReceipt(){
+  const entry=history.find(item=>item.receipt);
+  if(!entry){
+    $('receipt').innerHTML='<h3>Latest payment receipt</h3><p>A receipt appears when a payment is simulated, stopped, or rejected.</p>';
+    return;
+  }
+  const {service,expected,requested,reason}=entry.receipt;
+  const [title]=receiptOutcome(entry);
+  const tone=entry.outcome==='SIMULATED_EXECUTION_CONFIRMED'?'allow':entry.outcome==='FRESH_APPROVAL_REQUIRED'?'warn':'block';
+  const rows=[['Purchase',service],['Proposed receiver',entry.receiver],['Requested amount',formatNear(requested)+' NEAR'],['Simulated spend',formatNear(entry.receipt.spent)+' NEAR']];
+  if(expected!==entry.receiver)rows.splice(1,0,['Originally approved receiver',expected]);
+  $('receipt').innerHTML='<h3>Latest payment receipt</h3><p>'+esc(new Date(entry.time).toLocaleString())+'</p>'+
+    resultCard(tone,title,[reason])+
+    rows.map(([label,value])=>'<div class="row"><span>'+esc(label)+'</span><b>'+esc(value)+'</b></div>').join('')+
+    '<p class="note">Simulation only. No real NEAR moved.</p>';
+}
+function run(authorization){
+  if(!decision)return;
+  const rejected=decision.reasons.includes('HUMAN_REJECTED');
+  const result=rejected?{ok:false,reason:'SIGNING_REFUSED'}:execute(p,e,authorization,used,Date.now());
+  if(result.ok)used.push(authorization.id);
+  const explanations={
+    SIMULATED_EXECUTION_CONFIRMED:'The authorization matched this payment.',
+    FRESH_APPROVAL_REQUIRED:'The approval is missing, expired, or no longer matches this payment.',
+    REPLAY_REJECTED:'This approval has already been used.',
+    SIGNING_REFUSED:decision.reasons.map(reason=>reasons[reason]||reason).join(' ')
+  };
+  recordPayment('EXECUTION',result.reason,explanations[result.reason]);
+  render();
+}
 $('execute').onclick=()=>run(approval);$('old').onclick=()=>run(previous);$('mutate').onclick=()=>{p={...p,receiver:p.receiver==='supplier-a.testnet'?'supplier-new.testnet':'supplier-a.testnet'};e={...e,revision:e.revision+1,known:p.receiver===e.expected,denied:p.receiver===incidentReceiver};approval=null;decision=decide(p,e);event('PROPOSAL_CHANGED','PRIOR_APPROVAL_INVALIDATED');render()};$('export').onclick=()=>{const b=new Blob([JSON.stringify({mode:'simulation',history},null,2)],{type:'application/json'}),url=URL.createObjectURL(b),a=document.createElement('a');a.href=url;a.download='cadrotsentry-demo-log.json';a.click();URL.revokeObjectURL(url)};
 const pages={
   overview:['Review an agent payment','Pick a sample payment and see why it can proceed, needs your review, or is blocked.'],
@@ -82,7 +125,6 @@ function openPage(page){
   $('title').textContent=title;
   $('crumb').textContent=title;
   $('subtitle').textContent=subtitle;
-  document.querySelector('.stats').classList.toggle('hidden',page!=='overview');
   window.scrollTo(0,0);
 }
 document.querySelectorAll('nav button').forEach(button=>button.onclick=()=>openPage(button.dataset.page));

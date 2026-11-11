@@ -17,6 +17,7 @@ const text=responsesMode?(out.output_text||(out.output||[]).filter(x=>x.type==='
 let p;try{p=JSON.parse(text||'')}catch{return json({error:'Invalid model JSON; no authorization issued'},422)}
 if(!p||typeof p.receiver!=='string'||!/^([a-z0-9]+[-_.])*[a-z0-9]+$/.test(p.receiver)||typeof p.amountNear!=='string'||!/^\d+(\.\d{1,24})?$/.test(p.amountNear)||typeof p.service!=='string'||typeof p.injectionConcern!=='boolean')return json({error:'Invalid proposal schema; no authorization issued'},422);
 return json({mode:'live-near-ai',proposal:p,usage:out.usage,authorizationIssued:false});}catch{return json({error:'Request failed or timed out; no authorization issued'},502)}}
+if(u.pathname==='/cadrotsentry-logo.png')return new Response(Uint8Array.from(atob(LOGO),byte=>byte.charCodeAt(0)),{headers:{'Content-Type':'image/png','X-Content-Type-Options':'nosniff'}});
 if(u.pathname==='/app.js')return new Response(JS,{headers:{'Content-Type':'text/javascript'}});
 if(u.pathname==='/core.mjs')return new Response(CORE,{headers:{'Content-Type':'text/javascript'}});
 if(u.pathname!=='/')return new Response('Not found',{status:404});return new Response(HTML,{headers:{'Content-Type':'text/html; charset=utf-8','X-Content-Type-Options':'nosniff'}});
