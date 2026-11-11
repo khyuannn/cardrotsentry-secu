@@ -1,42 +1,43 @@
 # Cadrotsentry
 
-**A counterparty-check prototype for AI agents that pay.** A Cadrots project for NEAR Hackathon Track 06: AI Security & Defense (`security`).
+**Cadrotsentry checks whether a payment proposed by an AI agent still matches what its owner approved.** Built for NEAR Hackathon Track 06: AI Security & Defense.
 
-An agent submits its proposed payment receiver. Cadrotsentry is intended to collect receiver evidence, return **allow / warn / block with reasons**, and enforce that decision before the agent signs. The focused extension is detecting changes in approved receiver conditions and requiring fresh review.
+[Open the live demo](https://cardrotsentry-secu.vercel.app/)
 
-> **Current status:** runnable prototype with a live-RPC read-only inspection adapter, a separate seeded payment simulator, and an optional server-side NEAR AI proposal lab. No real payment signing, deployed vault or authenticated approval is implemented. Not submission-complete against the scoped-key requirement. Live external RPC and model calls still require verification in your environment.
+## Try the demo
+
+The sample flow requires no wallet, API key, or test tokens.
+
+1. Open **Payment workspace → Subscription renewal → Check payment**. The approved API plan costs **2 NEAR** per month.
+2. Click **Simulate renewal price increase**. The supplier proposes **3 NEAR**, so the payment needs review.
+3. Click **Test previous approval**. The old approval is refused. The receipt shows **0 NEAR simulated spend**.
+4. Select **Reject** to stop the renewal, or **Approve demo payment → Simulate payment** to record a newly approved **3 NEAR** payment in the simulator.
+5. Open **Decision history** to review the outcome. Try **Blocked receiver → Check payment** for a policy refusal, or **Check a receiver** with `cadrotsentry-demo.testnet` for a separate read-only lookup.
 
 ## Problem and solution
 
-AI purchasing agents can propose payments to unfamiliar receivers or follow malicious instructions in supplier content. Businesses need evidence and execution boundaries, not an unverified “safe” label.
+An agent may keep paying after a supplier changes its price or payment address. A payment can fit the spending limit and still differ from what the owner approved. Cadrotsentry compares the proposal against the owner’s approved details, explains the decision, and records the outcome.
 
-Our intended flow is: trusted owner intent → agent proposal → receiver evidence → policy decision → human review when needed → restricted signing → confirmed outcome. A new receiver or code change is a reason for review, not proof of fraud. An allow decision means configured checks passed, not a safety guarantee.
+The browser simulator demonstrates payment decisions, approval, and receipts. The NEAR testnet lookup uses live account metadata. Testnet signing, a deployed vault, and authenticated approval are planned.
 
 ## Run locally
 
-Use Node.js 22.9+ and Git. The sample demo needs no npm dependencies or API credentials.
+Use Git and Node.js 22.9 or newer. The sample flow needs no additional npm dependencies.
 
-If you have the full Git bundle, clone it into a new folder to keep your previous checkout as a backup. In PowerShell:
-
-```powershell
-cd "$env:USERPROFILE\Documents\GitHub"
-git clone --branch main "$env:USERPROFILE\Downloads\cadrotsentry-current.bundle" cadrotsentry-current
-cd cadrotsentry-current
+```sh
+git clone https://github.com/khyuannn/cardrotsentry-secu.git
+cd cardrotsentry-secu
 npm test
 npm run dev -- --port 3003
 ```
 
-Open [http://localhost:3003](http://localhost:3003). Stop the server with Ctrl+C. If the port is already in use, choose another port and open the URL printed in the terminal.
-
-The bundle contains the full committed project and history. It excludes local secrets and generated files. If you already have NEAR AI configured, you can copy your private `.env` from the old checkout before starting the new server. The sample flows work without it.
-
-Once the latest version is on GitHub, new users can clone [the repository](https://github.com/khyuannn/cardrotsentry-secu) directly and run the same npm commands. Use this one checkout for future changes, with ordinary commits and branches. `npm run build` generates the worker files. `npm run demo:attack` prints the simulated refusal log.
+Open [http://localhost:3003](http://localhost:3003). Use Ctrl+C to stop the server.
 
 ## Deploy on Vercel
 
-Import this repository into [Vercel](https://vercel.com/new). Choose **Other** if asked for a framework preset, use the repository root, and leave the output directory override off. The checked-in `vercel.json` runs `npm run build:vercel` and packages the app and server endpoints together. Start with sample proposals. They need no environment variables.
+Import this repository into [Vercel](https://vercel.com/new). Keep the repository root, choose **Other** if asked for a framework, and leave the output directory override off. The checked-in configuration runs `npm run build:vercel`. The sample flow needs no environment variables.
 
-Once deployed, open the production URL and check **Payment workspace → Subscription renewal**. The separate **Check a receiver** screen makes a read-only testnet query. If you connect the repository with `main` as the production branch, subsequent pushes to `main` trigger a new production build.
+With `main` set as the production branch, Vercel builds each push to `main`. The production URL updates after a successful deployment.
 
 ## What works now
 
@@ -48,7 +49,7 @@ Once deployed, open the production URL and check **Payment workspace → Subscri
 | Simulated approval | Exact proposal/evidence binding, expiry and single-use checks. Browser role only, not authenticated security. |
 | Decision history | Browser-local event history, payment receipts and JSON export. |
 | Attack replay | Recorded compromised proposal to a seeded demo-blocklisted receiver; simulated wrapper refuses signing. |
-| NEAR AI lab | Server-only bounded model call with proposal validation. Requires your replacement API secret and exact model ID. Advisory only, not connected to execution. |
+| AI purchase demo | Load a sample proposal or configure NEAR AI or Gemini to extract the service, receiver, and amount from an offer. Proposals go through a separate payment check. |
 
 The live inspection is separate from the sample payment flow. It does not authorize purchases or feed live evidence into simulated payments. A provider outage never substitutes seeded evidence as live evidence.
 
@@ -66,26 +67,11 @@ The live inspection is separate from the sample payment flow. It does not author
 | Injected-agent attack script and log | **Simulated recorded proposal** | Add live model experiment and real restricted-key execution boundary; report if model resists injection. |
 | Key limitations in README | **Documented below** | Add actual deployed scope/method/allowance after setup. |
 
-## NEAR AI credits
+## Optional AI extraction
 
-1. Revoke the key exposed in the earlier screenshot and generate a replacement in its issuing dashboard.
-2. Choose a model and copy its exact API ID from the current catalog.
-3. Run `Copy-Item .env.example .env` on Windows. Fill `NEAR_AI_API_KEY` and `NEAR_AI_MODEL` locally.
-4. Restart `npm run dev`. Open **AI purchase demo**, send one short offer and inspect response/usage.
+Copy `.env.example` to `.env` and configure one provider. For Gemini, set `AI_PROVIDER=gemini`, `GEMINI_API_KEY`, and `GEMINI_MODEL`. For NEAR AI, set `AI_PROVIDER=near-ai`, `NEAR_AI_API_KEY`, and `NEAR_AI_MODEL`.
 
-Never commit `.env`, expose a key in browser code, or paste it in issues. The backend calls `https://cloud-api.near.ai/v1/chat/completions`. It limits supplier text to 3000 characters, requests at most 300 output tokens, validates returned fields and times out. Check the selected model's parameter support; adapt unsupported output parameters without removing limits. Live model inference has not been tested with a replacement key.
-
-AI credits pay for inference, not NEAR gas or vault funds. A local `.env` does not configure the separately hosted demo. Hosted secrets need configuration and redeployment. There is no durable hosted rate limiter/billing cap: keep inference access private and add limits before wider access.
-
-## Try a subscription renewal
-
-1. Open **Payment workspace** and select **Subscription renewal → Check payment**. The proposed renewal matches the approved 2 NEAR monthly price.
-2. Click **Simulate renewal price increase** before completing the payment. The price changes to 3 NEAR and needs review.
-3. Click **Test previous approval**. The receipt shows 0 NEAR simulated spend. Expand **View receipt details** to see both prices.
-4. Click **Reject** to stop the renewal, or choose **Approve demo payment → Simulate payment** to record 3 NEAR in simulated spend.
-5. Open **Decision history** to see the recorded decisions and outcomes.
-
-You can also try **Blocked receiver → Check payment** to see a policy refusal, **Incident replay** to see the recorded redirection example, or **Check a receiver** for a read-only NEAR testnet account lookup. The payment and renewal flows use simulated funds.
+Restart the dev server. In **AI purchase demo**, enter a supplier offer and select **Extract**. The model produces an advisory proposal. Select **Open in payment workspace** to review it. Keep keys in `.env` locally or in the host’s server environment. The public demo can use sample proposals without server secrets.
 
 ## Architecture
 
