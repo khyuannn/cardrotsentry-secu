@@ -14,16 +14,23 @@ Our intended flow is: trusted owner intent → agent proposal → receiver evide
 
 ## Run locally
 
-Install Node.js 22+ and Git. No third-party npm dependencies or Python are needed.
+Use Node.js 22.9+ and Git. The sample demo needs no npm dependencies or API credentials.
+
+If you have the full Git bundle, clone it into a new folder to keep your previous checkout as a backup. In PowerShell:
 
 ```powershell
-git clone https://github.com/khyuannn/cardrotsentry-secu.git
-cd cardrotsentry-secu
+cd "$env:USERPROFILE\Documents\GitHub"
+git clone --branch main "$env:USERPROFILE\Downloads\cadrotsentry-current.bundle" cadrotsentry-current
+cd cadrotsentry-current
 npm test
-npm run dev
+npm run dev -- --port 3003
 ```
 
-Open **http://localhost:3000**. Stop with Ctrl+C. `npm run build` generates `worker/index.js` and `dist/server/index.js`. `npm run demo:attack` prints a reproducible simulated blocked-proposal log. Do not enable GitHub Pages expecting server APIs to work; this app needs a Node server or a compatible Worker host.
+Open [http://localhost:3003](http://localhost:3003). Stop the server with Ctrl+C. If the port is already in use, choose another port and open the URL printed in the terminal.
+
+The bundle contains the full committed project and history. It excludes local secrets and generated files. If you already have NEAR AI configured, you can copy your private `.env` from the old checkout before starting the new server. The sample flows work without it.
+
+Once the latest version is on GitHub, new users can clone [the repository](https://github.com/khyuannn/cardrotsentry-secu) directly and run the same npm commands. Use this one checkout for future changes, with ordinary commits and branches. `npm run build` generates the worker files. `npm run demo:attack` prints the simulated refusal log.
 
 ## What works now
 
@@ -31,9 +38,9 @@ Open **http://localhost:3000**. Stop with Ctrl+C. `npm run build` generates `wor
 | --- | --- |
 | Live receiver check | User-entered `.testnet` or implicit account; server queries finalized RPC account metadata and returns source/time/block references. |
 | Incomplete data handling | Historical activity, deployment dates, prior interactions and reviewed reports remain explicitly unknown. Incomplete inspection warns and issues no authorization. |
-| Payment simulator | Five labeled scenarios: normal, changed destination, changed code, blocked receiver and missing history. |
+| Payment simulator | Six scenarios: normal supplier, changed destination, changed contract, blocked receiver, missing history, and subscription renewal. |
 | Simulated approval | Exact proposal/evidence binding, expiry and single-use checks. Browser role only, not authenticated security. |
-| Decision history | Browser-local event history and JSON export. Editable, not tamper-proof. |
+| Decision history | Browser-local event history, payment receipts and JSON export. |
 | Attack replay | Recorded compromised proposal to a seeded demo-blocklisted receiver; simulated wrapper refuses signing. |
 | NEAR AI lab | Server-only bounded model call with proposal validation. Requires your replacement API secret and exact model ID. Advisory only, not connected to execution. |
 
@@ -58,22 +65,21 @@ The live inspection is separate from the sample payment flow. It does not author
 1. Revoke the key exposed in the earlier screenshot and generate a replacement in its issuing dashboard.
 2. Choose a model and copy its exact API ID from the current catalog.
 3. Run `Copy-Item .env.example .env` on Windows. Fill `NEAR_AI_API_KEY` and `NEAR_AI_MODEL` locally.
-4. Restart `npm run dev`. Open **NEAR AI lab**, send one short offer and inspect response/usage.
+4. Restart `npm run dev`. Open **AI purchase demo**, send one short offer and inspect response/usage.
 
 Never commit `.env`, expose a key in browser code, or paste it in issues. The backend calls `https://cloud-api.near.ai/v1/chat/completions`. It limits supplier text to 3000 characters, requests at most 300 output tokens, validates returned fields and times out. Check the selected model's parameter support; adapt unsupported output parameters without removing limits. Live model inference has not been tested with a replacement key.
 
 AI credits pay for inference, not NEAR gas or vault funds. A local `.env` does not configure the separately hosted demo. Hosted secrets need configuration and redeployment. There is no durable hosted rate limiter/billing cap: keep inference access private and add limits before wider access.
 
-## How to demonstrate honestly
+## Try a subscription renewal
 
-1. **Live receiver check:** enter an actual testnet account; inspect RPC metadata and unknown signals. If the provider fails, show the explicit unavailable result.
-2. **Sample normal payment:** run check → execute demo payment. No funds move.
-3. **Changed destination:** run check → try previous approval → observe refusal → approve exact payment → execute.
-4. Execute again to show single-use rejection.
-5. **Attack replay:** run it and show signing refusal and `transaction_submitted=false`.
-6. **Decision history:** inspect/export events.
+1. Open **Payment workspace** and select **Subscription renewal → Check payment**. The proposed renewal matches the approved 2 NEAR monthly price.
+2. Click **Simulate renewal price increase** before completing the payment. The price changes to 3 NEAR and needs review.
+3. Click **Test previous approval**. The receipt shows 0 NEAR simulated spend. Expand **View receipt details** to see both prices.
+4. Click **Reject** to stop the renewal, or choose **Approve demo payment → Simulate payment** to record 3 NEAR in simulated spend.
+5. Open **Decision history** to see the recorded decisions and outcomes.
 
-The recorded proposal replay does not claim that a live model followed the injection. Never present simulated execution as a confirmed testnet transfer.
+You can also try **Blocked receiver → Check payment** to see a policy refusal, **Incident replay** to see the recorded redirection example, or **Check a receiver** for a read-only NEAR testnet account lookup. The payment and renewal flows use simulated funds.
 
 ## Architecture
 
